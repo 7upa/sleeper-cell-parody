@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin · Sleeper Cell Scanner</title>
+  <link rel="stylesheet" href="/public/style.css" />
+</head>
+<body class="scanline">
+  <main class="container">
+    <div class="topbar">
+      <div class="brand"><span class="dot"></span> sleeper bureau</div>
+      <span class="badge">ADMIN CONSOLE</span>
+    </div>
+
+    <section class="hero">
+      <h1>Classifier Controls</h1>
+      <p>Update keyword triggers and the agent prompt. Existing records remain frozen for consistency.</p>
+    </section>
+
+    <section class="card">
+      <% if (message) { %>
+        <div class="notice"><%= message %></div>
+      <% } %>
+
+      <form method="post" action="/admin/settings?<%= token ? `token=${encodeURIComponent(token)}` : '' %>">
+        <label><strong>Analysis provider</strong></label>
+        <select name="provider" style="width:100%;padding:12px;border-radius:12px;border:1px solid rgba(121,149,255,.36);background:#0a0f1d;color:#eef3ff;">
+          <option value="local" <%= settings.provider === 'local' ? 'selected' : '' %>>local (deterministic mock)</option>
+          <option value="grok" <%= settings.provider === 'grok' ? 'selected' : '' %>>grok (real agent)</option>
+        </select>
+
+        <label style="margin-top:12px; display:block;"><strong>Provider model</strong></label>
+        <input name="providerModel" value="<%= settings.providerModel || 'grok-beta' %>" placeholder="grok-beta" />
+
+        <label style="margin-top:12px; display:block;"><strong>Provider base URL</strong></label>
+        <input name="providerBaseUrl" value="<%= settings.providerBaseUrl || 'https://api.x.ai/v1' %>" placeholder="https://api.x.ai/v1" />
+
+        <p class="subtle">For Grok mode, set <code>GROK_API_KEY</code> in your .env file.</p>
+
+        <label><strong>Keywords</strong> (one per line)</label>
+        <textarea name="keywords" rows="14"><%= settings.keywords.join('\n') %></textarea>
+
+        <label style="margin-top:12px; display:block;"><strong>Search/analysis prompt template</strong></label>
+        <textarea name="promptTemplate" rows="10"><%= settings.promptTemplate %></textarea>
+
+        <input type="hidden" name="token" value="<%= token %>" />
+        <button type="submit">Save Classifier Settings</button>
+      </form>
+
+      <p class="subtle" style="margin-top:10px;">
+        Tip: keep prompts structured so your agent returns stable JSON fields.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

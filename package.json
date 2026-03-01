@@ -1,0 +1,17 @@
+{
+  "name": "sleeper-cell-parody",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Parody sleeper-cell detector with one-time cached results per @handle",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "NODE_ENV=production node src/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "dotenv": "^16.5.0",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2"
+  }
+}
