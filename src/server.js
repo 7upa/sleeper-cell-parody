@@ -1,7 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const { getSettings, saveSettings, getAnalysisByHandle, insertAnalysis } = require('./db');
+const { getSettings, saveSettings, getAnalysisByHandle, insertAnalysis, dbMode } = require('./db');
 const { normalizeHandle } = require('./analyzer');
 const { analyzeWithProvider } = require('./agent-provider');
 
@@ -21,63 +21,111 @@ function checkAdmin(req, res, next) {
   return res.status(401).send('Unauthorized admin token');
 }
 
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.render('index', { result: null, input: '' });
 });
 
-app.post('/analyze', async (req, res) => {
-  const raw = req.body.handle || '';
-  const handle = normalizeHandle(raw);
+async function performAnalysis(raw) {
+  const handle = normalizeHandle(raw || '');
 
   if (!handle) {
-    return res.status(400).render('index', {
-      result: { error: 'Please enter a valid @handle.' },
-      input: raw
-    });
+    return {
+      status: 400,
+      input: raw,
+      result: { error: 'Please enter a valid @handle.' }
+    };
   }
 
-  const cached = getAnalysisByHandle(handle);
+  let cached;
+  try {
+    cached = await getAnalysisByHandle(handle);
+  } catch (err) {
+    return {
+      status: 500,
+      input: `@${handle}`,
+      result: { error: `Storage read failed: ${err.message}` }
+    };
+  }
+
   if (cached) {
-    return res.render('index', {
-      result: { ...cached, fromCache: true },
-      input: `@${handle}`
-    });
+    return {
+      status: 200,
+      input: `@${handle}`,
+      result: { ...cached, fromCache: true }
+    };
   }
 
-  const settings = getSettings();
+  let settings;
+  try {
+    settings = await getSettings();
+  } catch (err) {
+    return {
+      status: 500,
+      input: `@${handle}`,
+      result: { error: `Settings load failed: ${err.message}` }
+    };
+  }
 
   let fresh;
   try {
     fresh = await analyzeWithProvider({ handle, settings });
   } catch (err) {
-    console.error('Provider analysis failed, falling back to local:', err.message);
-    return res.status(502).render('index', {
+    return {
+      status: 502,
+      input: `@${handle}`,
       result: {
         error: `Analysis provider failed: ${err.message}. Fix provider config or switch to local in admin.`
-      },
-      input: `@${handle}`
-    });
+      }
+    };
   }
 
   let saved;
   try {
-    saved = insertAnalysis(fresh);
+    saved = await insertAnalysis(fresh);
   } catch (err) {
-    if (String(err.message || '').includes('UNIQUE')) {
-      saved = getAnalysisByHandle(handle);
+    if (String(err.message || '').includes('duplicate') || String(err.code || '') === '23505') {
+      saved = await getAnalysisByHandle(handle);
     } else {
-      throw err;
+      return {
+        status: 500,
+        input: `@${handle}`,
+        result: { error: `Storage write failed: ${err.message}` }
+      };
     }
   }
 
-  return res.render('index', {
-    result: { ...saved, fromCache: false },
-    input: `@${handle}`
+  return {
+    status: 200,
+    input: `@${handle}`,
+    result: { ...saved, fromCache: false }
+  };
+}
+
+app.post('/analyze', async (req, res) => {
+  const payload = await performAnalysis(req.body.handle || '');
+  return res.status(payload.status).render('index', {
+    result: payload.result,
+    input: payload.input
   });
 });
 
-app.get('/admin', checkAdmin, (req, res) => {
-  const settings = getSettings();
+app.post('/api/analyze', async (req, res) => {
+  const payload = await performAnalysis(req.body.handle || '');
+  return req.app.render('partials_results', { result: payload.result }, (err, html) => {
+    if (err) {
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+    return res.status(payload.status).json({
+      ok: payload.status < 400,
+      input: payload.input,
+      result: payload.result,
+      html
+    });
+  });
+});
+
+app.get('/admin', checkAdmin, async (req, res) => {
+  const settings = await getSettings();
   res.render('admin', {
     settings,
     message: null,
@@ -85,7 +133,7 @@ app.get('/admin', checkAdmin, (req, res) => {
   });
 });
 
-app.post('/admin/settings', checkAdmin, (req, res) => {
+app.post('/admin/settings', checkAdmin, async (req, res) => {
   const keywords = String(req.body.keywords || '')
     .split('\n')
     .map((line) => line.trim())
@@ -96,7 +144,7 @@ app.post('/admin/settings', checkAdmin, (req, res) => {
   const providerModel = String(req.body.providerModel || '').trim();
   const providerBaseUrl = String(req.body.providerBaseUrl || '').trim();
 
-  const settings = saveSettings({
+  const settings = await saveSettings({
     keywords,
     promptTemplate: promptTemplate || 'Parody prompt not configured yet.',
     provider,
@@ -106,15 +154,28 @@ app.post('/admin/settings', checkAdmin, (req, res) => {
 
   res.render('admin', {
     settings,
-    message: 'Settings saved. New handles will use these values.',
+    message: `Settings saved (${dbMode()} storage). New handles will use these values.`,
+    token: req.query.token || req.body.token || ''
+  });
+});
+
+app.post('/admin/reset-analyses', checkAdmin, async (req, res) => {
+  const { clearAll } = req.body;
+  if (clearAll === 'true') {
+    await clearAllAnalyses();
+  }
+  const settings = await loadSettings();
+  res.render('admin', {
+    settings,
+    message: clearAll === 'true' ? 'All cached analyses cleared. Fresh scans will compute new scores.' : 'No action taken.',
     token: req.query.token || req.body.token || ''
   });
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'sleeper-cell-parody' });
+  res.json({ ok: true, service: 'sleeper-cell-parody', db: dbMode() });
 });
 
 app.listen(PORT, () => {
-  console.log(`Sleeper Cell Parody running on http://localhost:${PORT}`);
+  console.log(`Sleeper Cell Parody running on http://localhost:${PORT} (db=${dbMode()})`);
 });

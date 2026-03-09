@@ -10,74 +10,55 @@
   <main class="container">
     <div class="topbar">
       <div class="brand"><span class="dot"></span> sleeper bureau</div>
-      <span class="badge">PARODY INTEL TERMINAL</span>
+      <span class="badge">INTEL TERMINAL</span>
     </div>
 
     <div class="ticker" data-ticker>Initializing signal stream...</div>
 
     <section class="hero">
       <h1>Sleeper Cell Scanner</h1>
-      <p>First scan locks the profile forever. Repeat scans replay the same classified snapshot.</p>
+      <p>Enter any X handle to analyze their sleeper cell potential.</p>
     </section>
 
     <section class="layout">
       <div class="col">
         <section class="card">
-          <form method="post" action="/analyze">
+          <form method="post" action="/analyze" data-scan-form>
             <div class="form-row">
               <input name="handle" placeholder="@elonmusk" value="<%= input || '' %>" />
-              <button type="submit">Run Deep Scan</button>
+              <button type="submit" data-scan-submit>Run Deep Scan</button>
             </div>
-            <p class="subtle">One canonical result per handle. No drift. No rewrites.</p>
+            <p class="subtle">Results are cached for faster repeat lookups.</p>
           </form>
         </section>
 
-        <% if (result && result.error) { %>
-          <section class="card"><strong><%= result.error %></strong></section>
-        <% } %>
+        <section class="card reveal-hidden" data-scan-loading>
+          <h3 style="margin:0 0 6px;">🔍 Scanning in progress...</h3>
+          <p class="subtle" style="margin:0;">Clearing previous dossier, ingesting fresh signal, compiling new readout.</p>
+        </section>
 
-        <% if (result && !result.error) { %>
-          <section class="card" data-score data-score="<%= result.score %>">
-            <h2 style="margin-top:0">@<%= result.handle %></h2>
-            <p>
-              Verdict:
-              <% if (result.verdict === 'CLEAR') { %><span class="pill ok">CLEAR</span><% } %>
-              <% if (result.verdict === 'WATCHLIST') { %><span class="pill watch">WATCHLIST</span><% } %>
-              <% if (result.verdict === 'SLEEPER_CELL') { %><span class="pill bad">SLEEPER CELL</span><% } %>
-            </p>
-
-            <div class="kpi">
-              <div class="item"><div class="label">Threat Score</div><div class="value"><%= result.score %>/100</div></div>
-              <div class="item"><div class="label">Confidence</div><div class="value"><%= result.confidence %>%</div></div>
-              <div class="item"><div class="label">Source</div><div class="value" style="font-size:14px;"><%= result.fromCache ? 'Replay Cache' : 'Fresh Analysis' %></div></div>
+        <section class="card scan-stage reveal-hidden" data-scan-stage data-chip-words='[]'>
+          <div class="scan-grid">
+            <div class="radar" data-radar>
+              <div class="ring r1"></div>
+              <div class="ring r2"></div>
+              <div class="ring r3"></div>
+              <div class="sweep"></div>
+              <div class="blip b1"></div>
+              <div class="blip b2"></div>
+              <div class="blip b3"></div>
             </div>
-
-            <div class="meter-wrap">
-              <div class="meter-head"><span>Threat meter</span><span data-meter-value>0%</span></div>
-              <div class="meter"><div class="meter-fill" data-meter-fill></div></div>
+            <div>
+              <h3 style="margin:0 0 8px">Live Scan Sequence</h3>
+              <div class="scan-feed" data-scan-feed></div>
+              <div class="chip-row" data-chip-row></div>
             </div>
+          </div>
+        </section>
 
-            <p class="subtle" style="margin-top:10px;">First analyzed: <code><%= result.createdAt %> UTC</code> · Algorithm: <code><%= result.algorithmVersion %></code></p>
-          </section>
-
-          <section class="card">
-            <h3 style="margin-top:0">Analyst reasoning</h3>
-            <ul class="clean">
-              <% result.reasons.forEach((r) => { %>
-                <li><%= r %></li>
-              <% }) %>
-            </ul>
-          </section>
-
-          <section class="card">
-            <h3 style="margin-top:0">Evidence snippets</h3>
-            <ul class="clean">
-              <% (result.evidence?.snippets || []).forEach((s) => { %>
-                <li><%= s %></li>
-              <% }) %>
-            </ul>
-          </section>
-        <% } %>
+        <div data-results-root>
+          <%- include('partials_results', { result }) %>
+        </div>
       </div>
 
       <aside class="col">
@@ -87,12 +68,11 @@
         </section>
 
         <section class="card">
-          <h3 style="margin-top:0">Protocol</h3>
+          <h3 style="margin-top:0">How It Works</h3>
           <ul class="clean">
-            <li>Handle normalization strips @ and lowercases.</li>
-            <li>First analysis is immutable and persisted.</li>
-            <li>Subsequent lookups replay canonical result.</li>
-            <li>Admin controls only affect future handles.</li>
+            <li>Enter any X handle to analyze.</li>
+            <li>Results are cached for faster reloads.</li>
+            <li>Admin controls affect future analyses.</li>
           </ul>
         </section>
       </aside>

@@ -1,0 +1,104 @@
+<%
+  const chipWords = (result?.evidence?.keywordHits || [])
+    .slice()
+    .sort((a,b)=> (b.count||0) - (a.count||0))
+    .map((k)=>k.keyword)
+    .filter(Boolean)
+    .slice(0, 16);
+%>
+<div data-results-payload data-chip-words='<%- JSON.stringify(chipWords) %>'>
+  <% if (result && result.error) { %>
+    <section class="card"><strong><%= result.error %></strong></section>
+  <% } %>
+
+  <% if (result && !result.error) {
+    const snippets = result.evidence?.snippets || [];
+    const keywordHits = result.evidence?.keywordHits || [];
+    const topWord = keywordHits.length
+      ? keywordHits.sort((a,b) => (b.count||0) - (a.count||0))[0]
+      : null;
+    const redFlag = snippets.length ? snippets[0] : 'No post sample captured';
+    const pfp = `https://unavatar.io/x/${encodeURIComponent(result.handle)}`;
+  %>
+    <section class="card reveal-card reveal-hidden" data-reveal-card data-score="<%= result.score %>">
+      <div class="profile-head">
+        <img class="pfp" src="<%= pfp %>" alt="@<%= result.handle %>" onerror="this.style.opacity='0.25'" />
+        <div>
+          <h2 style="margin:0">@<%= result.handle %></h2>
+          <p class="subtle" style="margin:6px 0 0">First analyzed: <code><%= result.createdAt %> UTC</code></p>
+        </div>
+      </div>
+
+      <div class="verdict-row">
+        <% if (result.verdict === 'CLEAR') { %><span class="pill ok">CLEAR</span><% } %>
+        <% if (result.verdict === 'WATCHLIST') { %><span class="pill watch">WATCHLIST</span><% } %>
+        <% if (result.verdict === 'SLEEPER_CELL') { %><span class="pill bad">SLEEPER CELL</span><% } %>
+        <span class="pill score"><%= result.score %>% Sleeper Index</span>
+        <% if (result.fromCache) { %><span class="pill score">CACHED INTEL</span><% } %>
+      </div>
+
+      <div class="kpi kpi-two">
+        <div class="item"><div class="label">Threat Score</div><div class="value"><%= result.score %>/100</div></div>
+        <div class="item"><div class="label">Confidence</div><div class="value"><%= result.confidence %>%</div></div>
+      </div>
+
+      <div class="meter-wrap">
+        <div class="meter-head"><span>Threat meter</span><span data-meter-value>0%</span></div>
+        <div class="meter"><div class="meter-fill" data-meter-fill></div></div>
+      </div>
+
+      <div class="intel-grid">
+        <div class="intel-card">
+          <div class="label">Biggest red-flag post</div>
+          <div class="intel-text">"<%= redFlag %>"</div>
+        </div>
+        <div class="intel-card">
+          <div class="label">Most-used sleeper word</div>
+          <div class="intel-text"><%= topWord ? `${topWord.keyword} (${topWord.count}x)` : 'No keyword collisions' %></div>
+        </div>
+      </div>
+
+      <p class="subtle" style="margin-top:10px;">Algorithm: <code><%= result.algorithmVersion %></code></p>
+
+      <button type="button" class="share-btn" onclick="shareResult('<%= result.handle %>', <%= result.score %>, '<%= result.verdict %>')" style="margin-top:12px;padding:8px 16px;background:linear-gradient(90deg,#1d9bf0,#0d8ecf);border:none;border-radius:20px;color:#fff;font-weight:600;cursor:pointer;">
+        Share on X
+      </button>
+    </section>
+
+    <section class="card reveal-card reveal-hidden" data-reveal-card>
+      <h3 style="margin-top:0">Analyst reasoning</h3>
+      <ul class="clean">
+        <% result.reasons.forEach((r) => { %>
+          <li><%= r %></li>
+        <% }) %>
+      </ul>
+    </section>
+
+    <section class="card reveal-card reveal-hidden" data-reveal-card>
+      <h3 style="margin-top:0">Evidence snippets</h3>
+      <ul class="clean">
+        <% snippets.forEach((s) => { %>
+          <li><%= s %></li>
+        <% }) %>
+      </ul>
+
+      <% if (result.evidence?.keywordHits?.length) { %>
+        <p class="subtle" style="margin-top:10px;">Keyword signal matches:</p>
+        <ul class="clean">
+          <% result.evidence.keywordHits.forEach((kh) => { %>
+            <li><strong><%= kh.keyword %></strong> — <%= kh.count %>x</li>
+          <% }) %>
+        </ul>
+      <% } %>
+
+      <% if (result.evidence?.mediaLinks?.length) { %>
+        <p class="subtle" style="margin-top:10px;">Media from evidence tweets:</p>
+        <ul class="clean">
+          <% result.evidence.mediaLinks.forEach((u, i) => { %>
+            <li><a href="<%= u %>" target="_blank" rel="noopener noreferrer">Media link <%= i + 1 %></a></li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </section>
+  <% } %>
+</div>
